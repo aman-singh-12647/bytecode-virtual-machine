@@ -121,6 +121,180 @@ void push(VM *vm, int value)
 }
 
 /**
+ * Reads a 4-byte integer from the bytecode at the current program counter.
+ * Increments the program counter by 4 bytes after reading.
+ * @param vm Pointer to the VM instance
+ *
+ * @return The 32-bit integer value read from bytecode
+ */
+int read_bytes(VM *vm)
+{
+    int val = 0;
+    val |= (unsigned char)(*vm->pc++) << 0;
+    val |= (unsigned char)(*vm->pc++) << 8;
+    val |= (unsigned char)(*vm->pc++) << 16;
+    val |= (unsigned char)(*vm->pc++) << 24;
+    return val;
+}
+
+/**
+ * Executes the bytecode program loaded in the VM.
+ * Fetches and executes instructions sequentially until the program halts
+ * or encounters an error.
+ * @param vm Pointer to the VM instance
+ * @param verbose int: 1 if true, 0 otherwise
+ */
+void run(VM *vm, int verbose)
+{
+    while (vm->running && (vm->pc - vm->code) < vm->code_size)
+    {
+        unsigned char opcode = *vm->pc;
+        vm->pc++;
+
+        switch (opcode)
+        {
+        case OP_PUSH:
+        {
+            int val = read_bytes(vm);
+            push(vm, val);
+            break;
+        }
+        case OP_POP:
+        {
+            pop(vm);
+            break;
+        }
+        case OP_DUP:
+        {
+            int val = pop(vm);
+            push(vm, val);
+            push(vm, val);
+            break;
+        }
+        case OP_HALT:
+        {
+            vm->running = 0;
+            break;
+        }
+        case OP_ADD:
+        {
+            int b = pop(vm);
+            int a = pop(vm);
+            push(vm, a + b);
+            break;
+        }
+        case OP_SUB:
+        {
+            int b = pop(vm);
+            int a = pop(vm);
+            push(vm, a - b);
+            break;
+        }
+        case OP_MUL:
+        {
+            int b = pop(vm);
+            int a = pop(vm);
+            push(vm, a * b);
+            break;
+        }
+        case OP_DIV:
+        {
+            int b = pop(vm);
+            int a = pop(vm);
+            if (b == 0)
+            {
+                fprintf(stderr, "Error: Divide by Zero\n");
+                vm->running = 0;
+            }
+            else
+            {
+                push(vm, a / b);
+            }
+            break;
+        }
+        case OP_CMP:
+        {
+            int b = pop(vm);
+            int a = pop(vm);
+            push(vm, (a < b) ? 1 : 0);
+            break;
+        }
+        case OP_STORE:
+        {
+            int idx = read_bytes(vm);
+            int val = pop(vm);
+            mem_store(vm, idx, val);
+            break;
+        }
+        case OP_LOAD:
+        {
+            int idx = read_bytes(vm);
+            int val = mem_load(vm, idx);
+            push(vm, val);
+            break;
+        }
+        case OP_JMP:
+        {
+            int target = read_bytes(vm);
+            vm->pc = vm->code + target;
+            break;
+        }
+        case OP_JZ:
+        {
+            int target = read_bytes(vm);
+            int val = pop(vm);
+            if (val == 0)
+                vm->pc = vm->code + target;
+            break;
+        }
+        case OP_JNZ:
+        {
+            int target = read_bytes(vm);
+            int val = pop(vm);
+            if (val != 0)
+                vm->pc = vm->code + target;
+            break;
+        }
+        case OP_CALL:
+        {
+            if (vm->rsp >= RETURN_STACK_SIZE)
+            {
+                fprintf(stderr, "Error: Call Stack Overflow\n");
+                vm->running = 0;
+            }
+            else
+            {
+                int target = read_bytes(vm);
+                vm->return_stack[vm->rsp++] = (int)(vm->pc - vm->code);
+                vm->pc = vm->code + target;
+            }
+            break;
+        }
+        case OP_RET:
+        {
+            if (vm->rsp <= 0)
+            {
+                fprintf(stderr, "Error: Call Stack Underflow\n");
+                vm->running = 0;
+            }
+            else
+            {
+                int ret_addr = vm->return_stack[--vm->rsp];
+                vm->pc = vm->code + ret_addr;
+            }
+            break;
+        }
+        default:
+            fprintf(stderr, "Unknown Opcode: 0x%X\n", opcode);
+            vm->running = 0;
+            break;
+        }
+        if (verbose == 1)
+            print_stack(vm);
+    }
+}
+
+/**
  * Main entry point for the bytecode virtual machine.
  * Loads a bytecode file from the specified path and executes it.
  * @param argc Argument count
