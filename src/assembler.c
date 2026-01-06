@@ -23,6 +23,21 @@ struct ParsedInstruction
 } *instructions = NULL;
 
 /**
+ * write_int32 - Writes a 32-bit integer to a file in little-endian format
+ * @param f The output file pointer
+ * @param val The integer value to write
+ */
+void write_int32(FILE *f, int val)
+{
+  unsigned char bytes[4];
+  bytes[0] = (val >> 0) & 0xFF;
+  bytes[1] = (val >> 8) & 0xFF;
+  bytes[2] = (val >> 16) & 0xFF;
+  bytes[3] = (val >> 24) & 0xFF;
+  fwrite(bytes, 1, 4, f);
+}
+
+/**
  * trim_whitespace - Trims leading and trailing whitespace from a string
  * @param str The input string to trim
  *
@@ -282,4 +297,81 @@ int parse_instructions(FILE *in)
   }
 
   return current_byte;
+}
+
+/**
+ * assemble - Assembles an assembly language source file into bytecode
+ * @param in The input file pointer to read assembly source code from
+ * @param out The output file pointer to write compiled bytecode to
+ *
+ * Performs two-pass assembly: first pass collects labels, second pass
+ * generates bytecode. Supports mnemonics with optional arguments and
+ * label references. Exits on parsing or validation errors.
+ *
+ * @return The total number of bytes written to the output file
+ */
+int assemble(FILE *in, FILE *out)
+{
+  int current_byte = parse_instructions(in);
+  while (instructions != NULL)
+  {
+    struct ParsedInstruction *next_instr = instructions->next;
+    int op = instructions->op;
+    fputc(op, out);
+
+    if (instructions->expects_arg)
+    {
+      int value = get_label_addr(instructions->arg);
+      if (value == -1)
+      {
+        value = atoi(instructions->arg);
+      }
+      write_int32(out, value);
+    }
+    free(instructions);
+    instructions = next_instr;
+  }
+
+  free_labels();
+  return current_byte;
+}
+
+/**
+ * main - Entry point for the assembler program
+ * @param argc The number of command-line arguments
+ * @param argv The command-line arguments (program name, source file, output file)
+ *
+ * Assembles an assembly language source file into bytecode binary.
+ * Usage: assembler <source.asm> <output.bin>
+ *
+ * @return 0 on success, 1 on failure
+ */
+int main(int argc, char *argv[])
+{
+  if (argc < 3)
+  {
+    printf("Usage: %s <source.asm> <output.bin>\n", argv[0]);
+    return 1;
+  }
+
+  FILE *in = fopen(argv[1], "r");
+  if (!in)
+  {
+    perror("Error opening source file");
+    return 1;
+  }
+
+  FILE *out = fopen(argv[2], "wb");
+  if (!out)
+  {
+    perror("Error opening output file");
+    fclose(in);
+    return 1;
+  }
+
+  int current_byte = assemble(in, out);
+  fclose(in);
+  fclose(out);
+  printf("Assembly complete: %s -> %s (%d bytes)\n", argv[1], argv[2], current_byte);
+  return 0;
 }
