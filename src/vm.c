@@ -30,6 +30,11 @@ typedef struct
 VM *create(unsigned char *code, int size)
 {
     VM *vm = (VM *)malloc(sizeof(VM));
+    if (vm == NULL)
+    {
+        fprintf(stderr, "Error: Failed to allocate VM\n");
+        return NULL;
+    }
     vm->sp = 0;
     vm->rsp = 0;
     vm->code = code;
@@ -168,6 +173,10 @@ void run(VM *vm, int verbose)
         case OP_DUP:
         {
             int val = pop(vm);
+            if (!vm->running)
+            {
+                break;
+            }
             push(vm, val);
             push(vm, val);
             break;
@@ -243,6 +252,12 @@ void run(VM *vm, int verbose)
         case OP_JZ:
         {
             int target = read_bytes(vm);
+            if (target < 0 || target >= vm->code_size)
+            {
+                fprintf(stderr, "Error: Invalid jump target %d\n", target);
+                vm->running = 0;
+                break;
+            }
             int val = pop(vm);
             if (val == 0)
                 vm->pc = vm->code + target;
@@ -266,8 +281,16 @@ void run(VM *vm, int verbose)
             else
             {
                 int target = read_bytes(vm);
-                vm->return_stack[vm->rsp++] = (int)(vm->pc - vm->code);
-                vm->pc = vm->code + target;
+                if (target < 0 || target >= vm->code_size)
+                {
+                    fprintf(stderr, "Error: Invalid call target %d\n", target);
+                    vm->running = 0;
+                }
+                else
+                {
+                    vm->return_stack[vm->rsp++] = (int)(vm->pc - vm->code);
+                    vm->pc = vm->code + target;
+                }
             }
             break;
         }
@@ -331,7 +354,14 @@ int main(int argc, char *argv[])
         fclose(f);
         return 1;
     }
-    fread(code, 1, fsize, f);
+    size_t bytes_read = fread(code, 1, fsize, f);
+    if (bytes_read != (size_t)fsize)
+    {
+        fprintf(stderr, "Failed to read complete file\n");
+        free(code);
+        fclose(f);
+        return 1;
+    }
     fclose(f);
 
     printf("--- Executing %s ---\n", argv[1]);
