@@ -135,6 +135,12 @@ void push(VM *vm, int value)
  */
 int read_bytes(VM *vm)
 {
+    if (vm->pc + 4 > vm->code + vm->code_size)
+    {
+        fprintf(stderr, "Error: Unexpected End of Code\n");
+        vm->running = 0;
+        return 0;
+    }
     int val = 0;
     val |= (unsigned char)(*vm->pc++) << 0;
     val |= (unsigned char)(*vm->pc++) << 8;
@@ -246,6 +252,12 @@ void run(VM *vm, int verbose)
         case OP_JMP:
         {
             int target = read_bytes(vm);
+            if (target < 0 || target >= vm->code_size)
+            {
+                fprintf(stderr, "Error: Invalid jump target %d\n", target);
+                vm->running = 0;
+                break;
+            }
             vm->pc = vm->code + target;
             break;
         }
@@ -266,6 +278,12 @@ void run(VM *vm, int verbose)
         case OP_JNZ:
         {
             int target = read_bytes(vm);
+            if (target < 0 || target >= vm->code_size)
+            {
+                fprintf(stderr, "Error: Invalid jump target %d\n", target);
+                vm->running = 0;
+                break;
+            }
             int val = pop(vm);
             if (val != 0)
                 vm->pc = vm->code + target;

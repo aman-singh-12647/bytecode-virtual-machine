@@ -392,7 +392,13 @@ int assemble(FILE *in, FILE *out)
       int value = get_label_addr(instructions->arg);
       if (value == -1)
       {
-        value = atoi(instructions->arg);
+        char *endptr;
+        value = (int)strtol(instructions->arg, &endptr, 10);
+        if (*endptr != '\0')
+        {
+          fprintf(stderr, "Error: Undefined label or invalid argument '%s'\n", instructions->arg);
+          exit(1);
+        }
       }
       write_int32(out, value);
     }
