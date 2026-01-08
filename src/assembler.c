@@ -410,10 +410,15 @@ int assemble(FILE *in, FILE *out)
  */
 int main(int argc, char *argv[])
 {
-  if (argc < 3)
+  char *out_file = "a.bin"; // Default output file name
+  if (argc < 2)
   {
-    printf("Usage: %s <source.asm> <output.bin>\n", argv[0]);
+    printf("Usage: %s <source.asm> [<output.bin>]\n", argv[0]);
     return 1;
+  }
+  if (argc > 2)
+  {
+    out_file = argv[2];
   }
 
   FILE *in = fopen(argv[1], "r");
@@ -423,7 +428,7 @@ int main(int argc, char *argv[])
     return 1;
   }
 
-  FILE *out = fopen(argv[2], "wb");
+  FILE *out = fopen(out_file, "wb");
   if (!out)
   {
     perror("Error opening output file");
